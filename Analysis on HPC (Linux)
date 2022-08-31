@@ -1,0 +1,56 @@
+###analaysing ATAC-seq samples archive-GSF2796.tar
+###using wget to get the samples from the sequencing core
+
+##untarring the files
+tar -xvf archive-GSF2796.tar
+##making a fastq directory
+mkdir fastqA
+##moving all fastqA files to the fastq directory
+mv *.fastq.gz fastqA/
+##unzipping the fastq files
+cd fastqA/
+gunzip *.gz
+
+
+module load bowtie2/intel/2.3.2 
+module load samtools/1.9
+module load  python/3.6.8
+module load deeptools/3.5.0 
+
+mkdir alignedA###make a directory for aligend samples
+
+###using Bowtie2 for aligment
+
+nohup bowtie2  --very-sensitive  -k 10  -x /N/slate/aghobash/Homo_sapiens/UCSC/hg38/Sequence/Bowtie2Index/genome -1 GSF2796-Ohagan-DAC_plus_CIS2_S6_R1_001.fastq -2 GSF2796-Ohagan-DAC_plus_CIS2_S6_R2_001.fastq -p 8 -S DAC_CIS_2_sam.sam
+
+##after making sam files, transfer to files called aligendA
+
+mv *.sam alginedA
+
+## converting sam files to bam files
+
+nohup samtools view -S -b DAC_CIS_2_sam.sam > DAC_CIS_2_sam.sam.bam
+
+samtools quickcheck -qvvv DAC_CIS_2_sam.sam.bam
+
+##transfering bam file to a new directory called bamA file
+
+mkdir bamA
+mv *.sam.bam bamA 
+# sort bam file
+
+nohup samtools sort DAC_CIS_2_sam.sam.bam -@ 8 –o DAC_CIS_2_sam.bam.SOTRED.bam
+
+# indexing sorted bam file (loop) WORKING CODE
+ls *.bam | parallel samtools index '{}'
+
+#Using deeptools to convert sorted bam to bigwig (easy to visualize in IGV)
+
+bamCoverage -bs 1 --bam DAC_CIS_2_sam.sam.bam.SOTRED.bam -p=max --normalizeUsingCPM -o DAC_CIS_2.CPM.bw
+
+#making conda environment to activate genrich
+conda activate /N/slate/aghobash/env_ATAC
+# using Genrich to call peaks
+Genrich  -t  UT_1.sorted.bam,UT_2.sorted.bam -o UT.narrowpeak -j -y -r -q 0.01 -e chrM –v
+
+
